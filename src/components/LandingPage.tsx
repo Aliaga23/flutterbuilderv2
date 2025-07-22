@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import * as LucideIcons from 'lucide-react';
-import LoginForm from './LoginForm';
+import AuthForm from './AuthForm';
+import UserProfile from './UserProfile';
+import { isAuthenticated } from '../services/authService';
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -35,6 +37,33 @@ const Logo = styled.div`
   svg {
     margin-right: 12px;
     color: #2196F3;
+  }
+`;
+
+const AuthButton = styled.button`
+  padding: 10px 20px;
+  background: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: #1E88E5;
+    transform: translateY(-1px);
+  }
+  
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3);
+  }
+  
+  @media (max-width: 768px) {
+    padding: 12px 16px;
+    font-size: 16px;
   }
 `;
 
@@ -136,9 +165,30 @@ const Footer = styled.footer`
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const [userAuthenticated, setUserAuthenticated] = useState(false);
+  const [showAuthForm, setShowAuthForm] = useState(false);
+
+  useEffect(() => {
+    setUserAuthenticated(isAuthenticated());
+  }, []);
 
   const handleLoginSuccess = () => {
+    setUserAuthenticated(true);
+    setShowAuthForm(false);
     navigate('/');
+  };
+
+  const handleLogout = () => {
+    setUserAuthenticated(false);
+    setShowAuthForm(false);
+  };
+
+  const handleAuthClick = () => {
+    if (userAuthenticated) {
+      navigate('/');
+    } else {
+      setShowAuthForm(!showAuthForm);
+    }
   };
 
   return (
@@ -148,6 +198,13 @@ export const LandingPage: React.FC = () => {
           <LucideIcons.Layers size={24} />
           Flutter Builder
         </Logo>
+        {userAuthenticated ? (
+          <UserProfile onLogout={handleLogout} />
+        ) : (
+          <AuthButton onClick={handleAuthClick}>
+            Iniciar Sesión
+          </AuthButton>
+        )}
       </Header>
 
       <MainContent>
@@ -179,7 +236,50 @@ export const LandingPage: React.FC = () => {
           </LeftSection>
           
           <RightSection>
-            <LoginForm onLoginSuccess={handleLoginSuccess} />
+            {!userAuthenticated && showAuthForm && (
+              <AuthForm onAuthSuccess={handleLoginSuccess} />
+            )}
+            {!userAuthenticated && !showAuthForm && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '400px',
+                color: '#718096',
+                textAlign: 'center'
+              }}>
+                <LucideIcons.Layers size={64} style={{ marginBottom: '16px', color: '#2196F3' }} />
+                <h3 style={{ fontSize: '18px', marginBottom: '8px', color: '#2D3748' }}>
+                  ¡Comienza a crear!
+                </h3>
+                <p style={{ fontSize: '14px', maxWidth: '300px' }}>
+                  Inicia sesión para acceder al diagramador y comenzar a construir tu aplicación Flutter.
+                </p>
+              </div>
+            )}
+            {userAuthenticated && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '400px',
+                color: '#718096',
+                textAlign: 'center'
+              }}>
+                <LucideIcons.CheckCircle size={64} style={{ marginBottom: '16px', color: '#48BB78' }} />
+                <h3 style={{ fontSize: '18px', marginBottom: '8px', color: '#2D3748' }}>
+                  ¡Listo para crear!
+                </h3>
+                <p style={{ fontSize: '14px', maxWidth: '300px', marginBottom: '20px' }}>
+                  Ya estás autenticado. Haz clic en el botón de arriba para ir al diagramador.
+                </p>
+                <AuthButton onClick={() => navigate('/')}>
+                  Ir al Diagramador
+                </AuthButton>
+              </div>
+            )}
           </RightSection>
         </ContentContainer>
       </MainContent>

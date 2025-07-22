@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
+import { register } from '../services/authService';
 
 const RegisterContainer = styled.div`
   width: 100%;
@@ -153,9 +154,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   const [password, setPassword] = useState('');
   const [userColor] = useState(generateRandomColor());
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Simple validation
@@ -183,25 +185,27 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       return;
     }
     
-    // For demo purposes, accept the registration
-    // In a real app, you would call an API here
+    setLoading(true);
     setError('');
     
-    // Store user data (in a real app, this would be handled by your backend)
-    const userData = {
-      username,
-      email,
-      password,
-      color: userColor
-    };
-    
-    console.log('Registered user:', userData);
-    
-    // Navigate to diagramador page or call the onRegisterSuccess callback
-    if (onRegisterSuccess) {
-      onRegisterSuccess();
-    } else {
-      navigate('/');
+    try {
+      await register({
+        username,
+        email,
+        password,
+        color: userColor
+      });
+      
+      // Navigate to diagramador page or call the onRegisterSuccess callback
+      if (onRegisterSuccess) {
+        onRegisterSuccess();
+      } else {
+        navigate('/');
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Error al crear la cuenta');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -255,8 +259,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
           </ColorPreview>
         </InputGroup>
         
-        <RegisterButton type="submit">
-          Crear Cuenta
+        <RegisterButton type="submit" disabled={loading}>
+          {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
         </RegisterButton>
       </form>
       

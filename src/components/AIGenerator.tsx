@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
 import { Sparkles, Image, Mic, MicOff, Upload, X, Send } from 'lucide-react';
+import { generateJSONFromImage, generateJSONFromPrompt, generateJSONFromAudio } from '../services/authService';
+import { useApp } from '../context/AppContext';
 
 const AIButton = styled.button`
   display: flex;
@@ -290,6 +292,8 @@ export function AIGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'loading'; text: string } | null>(null);
   
+  const { loadFromJSON } = useApp(); // Get loadFromJSON from context
+  
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -352,22 +356,53 @@ export function AIGenerator() {
     setStatusMessage({ type: 'loading', text: 'Generating UI with AI...' });
 
     try {
-      // Aquí integrarías con tu API de IA
-      // Por ahora simulo una respuesta
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Simular respuesta exitosa
-      setStatusMessage({ type: 'success', text: 'UI generated successfully! Check the canvas.' });
-      
-      // Limpiar inputs después de generar
-      setPrompt('');
-      setImage(null);
-      setAudioBlob(null);
-      if (imageInputRef.current) {
-        imageInputRef.current.value = '';
+      let generatedJSON = null;
+
+      // If there's an image, use the image-to-JSON API
+      if (image) {
+        setStatusMessage({ type: 'loading', text: 'Analyzing image and generating UI...' });
+        generatedJSON = await generateJSONFromImage(image);
+      } 
+      // If there's a text prompt, use the prompt-to-JSON API
+      else if (prompt.trim()) {
+        setStatusMessage({ type: 'loading', text: 'Generating UI from description...' });
+        generatedJSON = await generateJSONFromPrompt(prompt.trim());
       }
+      // If there's audio, use the audio-to-JSON API
+      else if (audioBlob) {
+        setStatusMessage({ type: 'loading', text: 'Analyzing audio and generating UI...' });
+        
+        // Convert blob to file for the API
+        const audioFile = new File([audioBlob], 'recording.wav', { type: 'audio/wav' });
+        generatedJSON = await generateJSONFromAudio(audioFile);
+      }
+
+      // Load the generated JSON into the app context
+      if (generatedJSON) {
+        loadFromJSON(generatedJSON);
+        setStatusMessage({ type: 'success', text: 'UI generated successfully! Check the canvas.' });
+        
+        // Clear inputs after successful generation
+        setPrompt('');
+        setImage(null);
+        setAudioBlob(null);
+        if (imageInputRef.current) {
+          imageInputRef.current.value = '';
+        }
+        
+        // Close modal after a short delay
+        setTimeout(() => {
+          setIsOpen(false);
+          setStatusMessage(null);
+        }, 2000);
+      }
+
     } catch (error) {
-      setStatusMessage({ type: 'error', text: 'Failed to generate UI. Please try again.' });
+      console.error('Error generating UI:', error);
+      setStatusMessage({ 
+        type: 'error', 
+        text: error instanceof Error ? error.message : 'Failed to generate UI. Please try again.' 
+      });
     } finally {
       setIsGenerating(false);
     }

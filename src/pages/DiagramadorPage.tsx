@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import styled from 'styled-components';
-import { Layers, Upload } from 'lucide-react';
-import { AppProvider } from '../context/AppContext';
+import { Layers, Upload, Save, ArrowLeft, Loader2 } from 'lucide-react';
+import { AppProvider, useApp } from '../context/AppContext';
 import { WidgetLibrary } from '../components/WidgetLibrary';
 import { Canvas } from '../components/Canvas';
 import { PropertiesPanel } from '../components/PropertiesPanel';
@@ -12,6 +13,7 @@ import { PageManager } from '../components/PageManager';
 import { JsonViewer } from '../components/JsonViewer';
 import { JsonImporter } from '../components/JsonImporter';
 import { AIGenerator } from '../components/AIGenerator';
+import { getProject, updateProject, isAuthenticated } from '../services/authService';
 
 const AppContainer = styled.div`
   display: flex;
@@ -121,10 +123,65 @@ const ImportButton = styled.button`
     transform: translateY(0);
   }
 
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
   @media (max-width: 768px) {
     padding: 10px 16px;
     font-size: 13px;
   }
+`;
+
+const SaveButton = styled(ImportButton)`
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.3);
+  
+  &:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.3);
+    border-color: rgba(34, 197, 94, 0.4);
+  }
+`;
+
+const BackButton = styled(ImportButton)`
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  
+  &:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+`;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+  color: white;
+  font-size: 18px;
+  gap: 12px;
+`;
+
+const ErrorContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+  color: white;
+  text-align: center;
+  padding: 24px;
+`;
+
+const ErrorMessage = styled.div`
+  font-size: 18px;
+  margin-bottom: 24px;
+  max-width: 500px;
 `;
 
 const AppTitle = styled.h1`
@@ -173,52 +230,176 @@ const AppIcon = styled.div`
 `;
 
 export function DiagramadorPage() {
-  const [showImporter, setShowImporter] = useState(false);
-
   return (
     <DndProvider backend={HTML5Backend}>
       <AppProvider>
-        <AppContainer>
-          <WidgetLibrary />
-          
-          <MainContent>
-            <Header>
-              <HeaderLeft>
-                <AppIcon><Layers size={32} /></AppIcon>
-                <div>
-                  <AppTitle>Flutter Designer Studio</AppTitle>
-                  <AppSubtitle>Enterprise-grade Visual UI Builder for Flutter Development</AppSubtitle>
-                </div>
-              </HeaderLeft>
-              
-              <HeaderRight>
-                <ImportButton onClick={() => setShowImporter(true)}>
-                  <Upload size={18} />
-                  Import Project
-                </ImportButton>
-                <AIGenerator />
-              </HeaderRight>
-            </Header>
-            
-            <TopBar>
-              <PageManager />
-            </TopBar>
-            
-            <DeviceSelector />
-            
-            <Canvas />
-            
-            <JsonViewer />
-          </MainContent>
-          
-          <PropertiesPanel />
-          
-          <JsonImporter 
-            isOpen={showImporter} 
-            onClose={() => setShowImporter(false)} 
-          />
-        </AppContainer>
+        <DiagramadorContent />
       </AppProvider>
     </DndProvider>
+  );
+}
+
+function DiagramadorContent() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { generateJSON, loadFromJSON } = useApp();
+  const [showImporter, setShowImporter] = useState(false);
+  const [project, setProject] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  
+  // Use ref to avoid adding loadFromJSON to dependencies
+  const loadFromJSONRef = useRef(loadFromJSON);
+  loadFromJSONRef.current = loadFromJSON;
+
+  useEffect(() => {
+    // Check authentication
+    if (!isAuthenticated()) {
+      navigate('/');
+      return;
+    }
+
+    if (!id) {
+      setError('ID del proyecto no proporcionado');
+      setLoading(false);
+      return;
+    }
+
+    // Define loadProject inside useEffect to avoid dependency issues
+    const loadProject = async () => {
+      try {
+        setLoading(true);
+        const projectData = await getProject(id);
+        setProject(projectData);
+        
+        // Load the project data into the context
+        if (projectData.data && Object.keys(projectData.data).length > 0) {
+          loadFromJSONRef.current(projectData.data);
+        }
+        
+        setError('');
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Error al cargar el proyecto');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProject();
+  }, [id, navigate]);
+
+ 
+
+  const handleSaveProject = async () => {
+    if (!project) return;
+
+    try {
+      setSaving(true);
+      
+      // Get current widget data from the context
+      const currentProjectData = JSON.parse(generateJSON());
+      
+      await updateProject(project.id, {
+        name: project.name,
+        data: currentProjectData
+      });
+      
+      setError('');
+      // Show success message or notification
+      console.log('Proyecto guardado exitosamente');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Error al guardar el proyecto');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBackToDashboard = () => {
+    navigate('/dashboard');
+  };
+
+  if (loading) {
+    return (
+      <LoadingContainer>
+        <Loader2 size={24} />
+        Cargando proyecto...
+      </LoadingContainer>
+    );
+  }
+
+  if (error) {
+    return (
+      <ErrorContainer>
+        <ErrorMessage>{error}</ErrorMessage>
+        <BackButton onClick={handleBackToDashboard}>
+          <ArrowLeft size={18} />
+          Volver al Dashboard
+        </BackButton>
+      </ErrorContainer>
+    );
+  }
+
+  if (!project) {
+    return (
+      <ErrorContainer>
+        <ErrorMessage>Proyecto no encontrado</ErrorMessage>
+        <BackButton onClick={handleBackToDashboard}>
+          <ArrowLeft size={18} />
+          Volver al Dashboard
+        </BackButton>
+      </ErrorContainer>
+    );
+  }
+
+  return (
+    <AppContainer>
+      <WidgetLibrary />
+      
+      <MainContent>
+        <Header>
+          <HeaderLeft>
+            <AppIcon><Layers size={32} /></AppIcon>
+            <div>
+              <AppTitle>{project.name}</AppTitle>
+              <AppSubtitle>Proyecto Flutter - Última modificación: {new Date(project.updated_at).toLocaleDateString('es-ES')}</AppSubtitle>
+            </div>
+          </HeaderLeft>
+          
+          <HeaderRight>
+            <BackButton onClick={handleBackToDashboard}>
+              <ArrowLeft size={18} />
+              Dashboard
+            </BackButton>
+            <SaveButton onClick={handleSaveProject} disabled={saving}>
+              {saving ? <Loader2 size={18} /> : <Save size={18} />}
+              {saving ? 'Guardando...' : 'Guardar'}
+            </SaveButton>
+            <ImportButton onClick={() => setShowImporter(true)}>
+              <Upload size={18} />
+              Import Project
+            </ImportButton>
+            <AIGenerator />
+          </HeaderRight>
+        </Header>
+        
+        <TopBar>
+          <PageManager />
+        </TopBar>
+        
+        <DeviceSelector />
+        
+        <Canvas />
+        
+        <JsonViewer />
+      </MainContent>
+      
+      <PropertiesPanel />
+      
+      <JsonImporter 
+        isOpen={showImporter} 
+        onClose={() => setShowImporter(false)} 
+      />
+    </AppContainer>
   );
 }

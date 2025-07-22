@@ -518,7 +518,7 @@ export function LandingPage() {
   const handleLoginSuccess = () => {
     setShowLoginModal(false);
     setIsMobileMenuOpen(false);
-    navigate('/diagramador');
+    navigate('/dashboard');
   };
 
   const toggleMobileMenu = () => {

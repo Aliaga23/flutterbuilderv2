@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
+import { login } from '../services/authService';
 
 const LoginContainer = styled.div`
   width: 100%;
@@ -122,9 +123,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onSwitchTo
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Simple validation
@@ -140,15 +142,22 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onSwitchTo
       return;
     }
     
-    // For demo purposes, accept any non-empty valid email and password
-    // In a real app, you would call an authentication API here
+    setLoading(true);
     setError('');
     
-    // Navigate to diagramador page or call the onLoginSuccess callback
-    if (onLoginSuccess) {
-      onLoginSuccess();
-    } else {
-      navigate('/');
+    try {
+      await login({ email, password });
+      
+      // Navigate to diagramador page or call the onLoginSuccess callback
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      } else {
+        navigate('/');
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Error al iniciar sesión');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -184,8 +193,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onSwitchTo
           />
         </InputGroup>
         
-        <LoginButton type="submit">
-          Ingresar al Diagramador
+        <LoginButton type="submit" disabled={loading}>
+          {loading ? 'Iniciando sesión...' : 'Ingresar al Diagramador'}
         </LoginButton>
       </form>
       

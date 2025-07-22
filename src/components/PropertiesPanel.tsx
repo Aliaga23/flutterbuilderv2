@@ -7,6 +7,7 @@ import { IconSelector } from './IconSelector';
 import { TableEditor } from './TableEditor';
 import { DropdownOptionsEditor } from './DropdownOptionsEditor';
 import { ChecklistItemsEditor } from './ChecklistItemsEditor';
+import { generateFlutterApp, generateFunctionalAppWithAI } from '../services/authService';
 
 const PanelContainer = styled.div`
   width: 320px;
@@ -224,6 +225,103 @@ const ActionButton = styled.button`
   }
 `;
 
+const ExportButton = styled.button`
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #e03c1fff 0%, #a34130ff 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.2);
+    background: linear-gradient(135deg, #8a3737ff 0%, #df0b0bff 100%);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #ffffff;
+    border-top: 2px solid transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
+const ExportWithAIButton = styled.button`
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px -3px rgba(139, 92, 246, 0.3);
+    background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #ffffff;
+    border-top: 2px solid transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+`;
+
 
 
 const ColorPreview = styled.div<{ color: string }>`
@@ -396,12 +494,14 @@ function ColorPicker({ label, value, onChange }: ColorPickerProps) {
 }
 
 export function PropertiesPanel() {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, generateJSON } = useApp();
   const selectedWidget = state.selectedWidget;
   const dragPosition = state.dragPosition;
   const [showTableEditor, setShowTableEditor] = useState(false);
   const [isDropdownOptionsEditorOpen, setIsDropdownOptionsEditorOpen] = useState(false);
   const [isChecklistItemsEditorOpen, setIsChecklistItemsEditorOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isExportingWithAI, setIsExportingWithAI] = useState(false);
 
   const updateProperty = (property: string, value: any) => {
     if (!selectedWidget) return;
@@ -415,6 +515,91 @@ export function PropertiesPanel() {
         }
       }
     });
+  };
+
+  const handleExportToFlutter = async () => {
+    try {
+      setIsExporting(true);
+      
+      // Generate the project JSON data
+      const projectJson = JSON.parse(generateJSON());
+      
+      // Call the Flutter generation API
+      const blob = await generateFlutterApp(projectJson);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Generate filename from project name
+      const projectName = projectJson.name || 'flutter_app';
+      const safeFileName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      link.download = `${safeFileName}_flutter_app.zip`;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      alert('Flutter application exported successfully!');
+    } catch (error) {
+      console.error('Error al exportar a Flutter:', error);
+      alert('Error exporting Flutter application. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportWithAI = async () => {
+    try {
+      setIsExportingWithAI(true);
+      
+      // Generate the project JSON data
+      const projectJson = JSON.parse(generateJSON());
+      
+      // Get AI description from user
+      const description = prompt(
+        'Describe what you want to make functional in your app (e.g., "make it functional without deprecated code"):',
+        'make it functional without deprecated code'
+      );
+      
+      if (!description) {
+        setIsExportingWithAI(false);
+        return;
+      }
+      
+      // Call the functional AI generation API
+      const blob = await generateFunctionalAppWithAI(projectJson, description);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Generate filename from project name
+      const projectName = projectJson.name || 'flutter_app';
+      const safeFileName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      link.download = `${safeFileName}_ai_functional_flutter_app.zip`;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      alert('AI-powered functional Flutter application exported successfully!');
+    } catch (error) {
+      console.error('Error al exportar con AI:', error);
+      alert('Error exporting AI-powered Flutter application. Please try again.');
+    } finally {
+      setIsExportingWithAI(false);
+    }
   };
 
   const handleTableSave = (columns: string[], rows: string[][]) => {
@@ -457,6 +642,32 @@ export function PropertiesPanel() {
           <PanelTitle>Properties</PanelTitle>
         </PanelHeader>
         <PanelContent>
+          <ExportButton onClick={handleExportToFlutter} disabled={isExporting}>
+            {isExporting ? (
+              <>
+                <div className="spinner"></div>
+                Exporting...
+              </>
+            ) : (
+              <>
+                Export to Flutter
+              </>
+            )}
+          </ExportButton>
+          
+          <ExportWithAIButton onClick={handleExportWithAI} disabled={isExportingWithAI}>
+            {isExportingWithAI ? (
+              <>
+                <div className="spinner"></div>
+                Exporting with AI...
+              </>
+            ) : (
+              <>
+                Export with AI
+              </>
+            )}
+          </ExportWithAIButton>
+          
           <EmptyState>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚙</div>
             <div>Select a widget to edit its properties</div>

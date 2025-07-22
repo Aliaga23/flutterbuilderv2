@@ -23,7 +23,8 @@ type AppAction =
   | { type: 'SET_DEVICE'; payload: string }
   | { type: 'SET_DRAGGING'; payload: boolean }
   | { type: 'SET_DRAG_POSITION'; payload: { x: number; y: number } | null }
-  | { type: 'UPDATE_PROJECT'; payload: Partial<FlutterProject> };
+  | { type: 'UPDATE_PROJECT'; payload: Partial<FlutterProject> }
+  | { type: 'LOAD_PROJECT'; payload: FlutterProject };
 
 const initialProject: FlutterProject = {
   name: 'Flutter App',
@@ -287,6 +288,16 @@ function appReducer(state: AppState, action: AppAction): AppState {
         }
       };
 
+    case 'LOAD_PROJECT':
+      return {
+        ...state,
+        project: {
+          ...action.payload,
+          selectedDeviceId: state.project.selectedDeviceId // Preserve current device selection
+        },
+        selectedWidget: null // Clear selection when loading new project
+      };
+
     default:
       return state;
   }
@@ -298,6 +309,7 @@ const AppContext = createContext<{
   addWidget: (widgetType: string, position: Position, pageId: string) => void;
   getCurrentPage: () => Page | undefined;
   generateJSON: () => string;
+  loadFromJSON: (jsonData: any) => void;
   forceUpdateBottomNavBars: () => void;
 } | null>(null);
 
@@ -305,7 +317,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
   const forceUpdateBottomNavBars = useCallback(() => {
-    const allPages = state.project.pages;
+    // Get current state at the time of execution
+    const currentState = state;
+    const allPages = currentState.project.pages;
     const pageNames = allPages.map(page => page.name);
     const pageRoutes = allPages.map(page => page.route);
     
@@ -327,12 +341,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       });
     });
-  }, [state.project.pages]);
+  }, [state]);
 
-  // Automatically sync BottomNavigationBars on mount and when pages change
+  // Extract complex expression to variables for ESLint
+  const pagesLength = state.project.pages.length;
+  const pageNamesString = state.project.pages.map(p => p.name).join(',');
+
+  // Automatically sync BottomNavigationBars when pages change, but prevent infinite loops
   useEffect(() => {
-    forceUpdateBottomNavBars();
-  }, [forceUpdateBottomNavBars]);
+    const timeoutId = setTimeout(() => {
+      forceUpdateBottomNavBars();
+    }, 0);
+    
+    return () => clearTimeout(timeoutId);
+  }, [pagesLength, pageNamesString, forceUpdateBottomNavBars]);
 
   const addWidget = (widgetType: string, position: Position, pageId: string) => {
     const template = WIDGET_TEMPLATES.find(t => t.id === widgetType);
@@ -378,6 +400,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return JSON.stringify(exportData, null, 2);
   };
 
+  const loadFromJSON = (jsonData: any) => {
+    try {
+      // Validate and load project data
+      const projectData: FlutterProject = {
+        name: jsonData.name || 'Untitled Project',
+        description: jsonData.description || 'A Flutter app built visually',
+        currentPageId: jsonData.currentPageId || (jsonData.pages?.[0]?.id || 'page-1'),
+        selectedDeviceId: state.project.selectedDeviceId, // Keep current device
+        pages: jsonData.pages || [
+          {
+            id: 'page-1',
+            name: 'Home',
+            route: '/',
+            widgets: []
+          }
+        ],
+        theme: {
+          primaryColor: jsonData.theme?.primaryColor || '#2196F3',
+          accentColor: jsonData.theme?.accentColor || '#FF4081',
+          backgroundColor: jsonData.theme?.backgroundColor || '#FFFFFF'
+        }
+      };
+
+      dispatch({ type: 'LOAD_PROJECT', payload: projectData });
+    } catch (error) {
+      console.error('Error loading project from JSON:', error);
+      // Could show an error message to the user here
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       state,
@@ -385,6 +437,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addWidget,
       getCurrentPage,
       generateJSON,
+      loadFromJSON,
       forceUpdateBottomNavBars
     }}>
       {children}
