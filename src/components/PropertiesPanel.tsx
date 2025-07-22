@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { ChromePicker } from 'react-color';
 import { useApp } from '../context/AppContext';
 import { FlutterWidget } from '../types';
 import { IconSelector } from './IconSelector';
+import { TableEditor } from './TableEditor';
+import { DropdownOptionsEditor } from './DropdownOptionsEditor';
+import { ChecklistItemsEditor } from './ChecklistItemsEditor';
 
 const PanelContainer = styled.div`
   width: 320px;
@@ -199,6 +202,28 @@ const PropertyTextarea = styled.textarea`
   }
 `;
 
+const ActionButton = styled.button`
+  padding: 8px 16px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #3B82F6;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: #F9FAFB;
+    border-color: #3B82F6;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+  
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+
 
 
 const ColorPreview = styled.div<{ color: string }>`
@@ -264,6 +289,39 @@ const EmptyState = styled.div`
   text-align: center;
   color: #999;
   padding: 40px 20px;
+`;
+
+const EditButton = styled.button`
+  width: 100%;
+  padding: 12px;
+  background: #3B82F6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  fontSize: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &:hover {
+    background: #2563EB;
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+
+const InfoBox = styled.div`
+  margin-top: 8px;
+  font-size: 12px;
+  color: #64748B;
+  background: #F8FAFC;
+  padding: 8px;
+  border-radius: 4px;
 `;
 
 
@@ -340,6 +398,10 @@ function ColorPicker({ label, value, onChange }: ColorPickerProps) {
 export function PropertiesPanel() {
   const { state, dispatch } = useApp();
   const selectedWidget = state.selectedWidget;
+  const dragPosition = state.dragPosition;
+  const [showTableEditor, setShowTableEditor] = useState(false);
+  const [isDropdownOptionsEditorOpen, setIsDropdownOptionsEditorOpen] = useState(false);
+  const [isChecklistItemsEditorOpen, setIsChecklistItemsEditorOpen] = useState(false);
 
   const updateProperty = (property: string, value: any) => {
     if (!selectedWidget) return;
@@ -355,7 +417,38 @@ export function PropertiesPanel() {
     });
   };
 
+  const handleTableSave = (columns: string[], rows: string[][]) => {
+    updateProperty('columns', columns);
+    updateProperty('rows', rows);
+  };
 
+  // Drag position indicator component
+  const DragPositionIndicator = () => {
+    if (!dragPosition) return null;
+    
+    return (
+      <PropertyGroup style={{ 
+        backgroundColor: '#FEF3C7', 
+        borderColor: '#F59E0B',
+        borderWidth: '2px' 
+      }}>
+        <PropertyLabel style={{ color: '#92400E', fontWeight: 600 }}>
+          🎯 Drag Position (Live)
+        </PropertyLabel>
+        <div style={{ 
+          display: 'flex', 
+          gap: '12px', 
+          fontSize: '14px',
+          fontFamily: 'monospace',
+          color: '#92400E',
+          fontWeight: 500
+        }}>
+          <div>X: {dragPosition.x}</div>
+          <div>Y: {dragPosition.y}</div>
+        </div>
+      </PropertyGroup>
+    );
+  };
 
   if (!selectedWidget) {
     return (
@@ -382,13 +475,13 @@ export function PropertiesPanel() {
           <PropertyLabel>Position X</PropertyLabel>
           <PropertyInput
             type="number"
-            value={widget.position.x}
+            value={Math.round(widget.position.x)}
             onChange={(e) => {
               dispatch({
                 type: 'MOVE_WIDGET',
                 payload: {
                   widgetId: widget.id,
-                  position: { ...widget.position, x: Number(e.target.value) }
+                  position: { ...widget.position, x: Math.round(Number(e.target.value)) }
                 }
               });
             }}
@@ -399,13 +492,13 @@ export function PropertiesPanel() {
           <PropertyLabel>Position Y</PropertyLabel>
           <PropertyInput
             type="number"
-            value={widget.position.y}
+            value={Math.round(widget.position.y)}
             onChange={(e) => {
               dispatch({
                 type: 'MOVE_WIDGET',
                 payload: {
                   widgetId: widget.id,
-                  position: { ...widget.position, y: Number(e.target.value) }
+                  position: { ...widget.position, y: Math.round(Number(e.target.value)) }
                 }
               });
             }}
@@ -728,23 +821,13 @@ export function PropertiesPanel() {
           <>
             {commonProperties}
             <PropertyGroup>
-              <PropertyLabel>Items</PropertyLabel>
-              <PropertyTextarea
-                value={(properties.items || []).join('\n')}
-                onChange={(e) => updateProperty('items', e.target.value.split('\n').filter(item => item.trim()))}
-                placeholder="Enter each item on a new line"
-              />
-            </PropertyGroup>
-            <PropertyGroup>
-              <PropertyLabel>Checked Items (indices, comma-separated)</PropertyLabel>
-              <PropertyInput
-                value={(properties.checkedItems || []).join(', ')}
-                onChange={(e) => {
-                  const indices = e.target.value.split(',').map(i => parseInt(i.trim())).filter(i => !isNaN(i));
-                  updateProperty('checkedItems', indices);
-                }}
-                placeholder="e.g., 0, 2, 3"
-              />
+              <PropertyLabel>Checklist Items</PropertyLabel>
+              <EditButton onClick={() => setIsChecklistItemsEditorOpen(true)}>
+                📝 Edit Checklist Items
+              </EditButton>
+              <InfoBox>
+                {properties.items?.length || 0} items, {(properties.checkedItems || []).length} checked
+              </InfoBox>
             </PropertyGroup>
             <PropertyGroup>
               <PropertyLabel>Font Size</PropertyLabel>
@@ -777,26 +860,13 @@ export function PropertiesPanel() {
           <>
             {commonProperties}
             <PropertyGroup>
-              <PropertyLabel>Columns (comma-separated)</PropertyLabel>
-              <PropertyTextarea
-                value={(properties.columns || []).join(', ')}
-                onChange={(e) => updateProperty('columns', e.target.value.split(',').map(col => col.trim()).filter(col => col))}
-                placeholder="Name, Age, City"
-              />
-            </PropertyGroup>
-            <PropertyGroup>
-              <PropertyLabel>Rows (one row per line, cells comma-separated)</PropertyLabel>
-              <PropertyTextarea
-                value={(properties.rows || []).map((row: string[]) => row.join(', ')).join('\n')}
-                onChange={(e) => {
-                  const rows = e.target.value.split('\n')
-                    .filter(line => line.trim())
-                    .map(line => line.split(',').map(cell => cell.trim()));
-                  updateProperty('rows', rows);
-                }}
-                placeholder="John Doe, 25, New York&#10;Jane Smith, 30, Los Angeles"
-                style={{ minHeight: '80px' }}
-              />
+              <PropertyLabel>Table Data</PropertyLabel>
+              <EditButton onClick={() => setShowTableEditor(true)}>
+                📝 Edit Table Data
+              </EditButton>
+              <InfoBox>
+                Current: {properties.columns?.length || 0} columns, {properties.rows?.length || 0} rows
+              </InfoBox>
             </PropertyGroup>
             <PropertyGroup>
               <PropertyLabel>Font Size</PropertyLabel>
@@ -939,6 +1009,142 @@ export function PropertiesPanel() {
               label="Active Color"
               value={properties.activeColor || '#2196F3'}
               onChange={(color) => updateProperty('activeColor', color)}
+            />
+          </>
+        );
+        
+      case 'dropdown':
+        return (
+          <>
+            {commonProperties}
+            <PropertyGroup>
+              <PropertyLabel>Placeholder</PropertyLabel>
+              <PropertyInput
+                value={properties.placeholder || 'Select an option'}
+                onChange={(e) => updateProperty('placeholder', e.target.value)}
+              />
+            </PropertyGroup>
+            
+            <PropertyGroup>
+              <PropertyLabel>Options</PropertyLabel>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', color: '#64748B' }}>
+                  {(properties.items || []).length} options defined
+                </span>
+                <ActionButton onClick={() => setIsDropdownOptionsEditorOpen(true)}>
+                  Edit Options
+                </ActionButton>
+              </div>
+              {properties.items && properties.items.length > 0 && (
+                <div style={{ 
+                  marginTop: '12px', 
+                  padding: '8px', 
+                  backgroundColor: '#F9FAFB', 
+                  borderRadius: '4px', 
+                  maxHeight: '120px', 
+                  overflow: 'auto' 
+                }}>
+                  {properties.items.map((item: string, index: number) => (
+                    <div key={index} style={{ 
+                      padding: '6px 8px', 
+                      marginBottom: '4px', 
+                      borderRadius: '4px',
+                      background: '#FFF',
+                      border: '1px solid #E5E7EB',
+                      fontSize: '14px'
+                    }}>
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {isDropdownOptionsEditorOpen && selectedWidget?.type === 'dropdown' && (
+                <DropdownOptionsEditor 
+                  isOpen={isDropdownOptionsEditorOpen}
+                  onClose={() => setIsDropdownOptionsEditorOpen(false)}
+                  options={properties.items || []}
+                  onSave={(options) => updateProperty('items', options)}
+                />
+              )}
+            </PropertyGroup>
+            
+            <PropertyGroup>
+              <PropertyLabel>Selected Value</PropertyLabel>
+              <PropertySelect
+                value={properties.value || ''}
+                onChange={(e) => updateProperty('value', e.target.value)}
+              >
+                <option value="">None (Show Placeholder)</option>
+                {(properties.items || []).map((item: string, index: number) => (
+                  <option key={index} value={item}>{item}</option>
+                ))}
+              </PropertySelect>
+            </PropertyGroup>
+            
+            <PropertyGroup>
+              <PropertyLabel>Font Size</PropertyLabel>
+              <PropertyInput
+                type="number"
+                value={properties.fontSize || 14}
+                onChange={(e) => updateProperty('fontSize', Number(e.target.value))}
+              />
+            </PropertyGroup>
+            
+            <PropertyGroup>
+              <PropertyLabel>Border Radius</PropertyLabel>
+              <PropertyInput
+                type="number"
+                value={properties.borderRadius || 4}
+                onChange={(e) => updateProperty('borderRadius', Number(e.target.value))}
+              />
+            </PropertyGroup>
+            
+            <PropertyGroup>
+              <PropertyLabel>Border Width</PropertyLabel>
+              <PropertyInput
+                type="number"
+                value={properties.borderWidth || 1}
+                onChange={(e) => updateProperty('borderWidth', Number(e.target.value))}
+              />
+            </PropertyGroup>
+            
+            <PropertyGroup>
+              <PropertyLabel>Elevation</PropertyLabel>
+              <PropertyInput
+                type="number"
+                value={properties.elevation || 2}
+                onChange={(e) => updateProperty('elevation', Number(e.target.value))}
+              />
+            </PropertyGroup>
+            
+            <ColorPicker
+              label="Background Color"
+              value={properties.backgroundColor || '#FFFFFF'}
+              onChange={(color) => updateProperty('backgroundColor', color)}
+            />
+            
+            <ColorPicker
+              label="Border Color"
+              value={properties.borderColor || '#CCCCCC'}
+              onChange={(color) => updateProperty('borderColor', color)}
+            />
+            
+            <ColorPicker
+              label="Text Color"
+              value={properties.textColor || '#000000'}
+              onChange={(color) => updateProperty('textColor', color)}
+            />
+            
+            <ColorPicker
+              label="Arrow Color"
+              value={properties.arrowColor || '#757575'}
+              onChange={(color) => updateProperty('arrowColor', color)}
+            />
+            
+            <ColorPicker
+              label="Hover Color"
+              value={properties.hoverColor || '#F5F5F5'}
+              onChange={(color) => updateProperty('hoverColor', color)}
             />
           </>
         );
@@ -1114,6 +1320,8 @@ export function PropertiesPanel() {
           <WidgetId>ID: {selectedWidget.id}</WidgetId>
         </WidgetInfo>
 
+        <DragPositionIndicator />
+
         {renderProperties(selectedWidget)}
 
         <div style={{ 
@@ -1127,6 +1335,27 @@ export function PropertiesPanel() {
           Right-click widget to delete
         </div>
       </PanelContent>
+      
+      <TableEditor
+        isOpen={showTableEditor}
+        onClose={() => setShowTableEditor(false)}
+        columns={selectedWidget?.properties.columns || []}
+        rows={selectedWidget?.properties.rows || []}
+        onSave={handleTableSave}
+      />
+      
+      {isChecklistItemsEditorOpen && selectedWidget?.type === 'checklist' && (
+        <ChecklistItemsEditor
+          isOpen={isChecklistItemsEditorOpen}
+          onClose={() => setIsChecklistItemsEditorOpen(false)}
+          items={selectedWidget?.properties.items || []}
+          checkedItems={selectedWidget?.properties.checkedItems || []}
+          onSave={(items, checkedItems) => {
+            updateProperty('items', items);
+            updateProperty('checkedItems', checkedItems);
+          }}
+        />
+      )}
     </PanelContainer>
   );
 }

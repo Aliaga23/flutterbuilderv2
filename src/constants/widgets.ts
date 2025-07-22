@@ -14,8 +14,8 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       color: '#000000',
       fontWeight: 'normal',
       textAlign: 'left',
-      width: 80,
-      height: 30,
+      width: 120,
+      height: 35,
     }
   },
   {
@@ -32,8 +32,8 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       fontSize: 16,
       padding: 16,
       borderRadius: 8,
-      width: 100,
-      height: 40,
+      width: 140,
+      height: 45,
     }
   },
   {
@@ -49,8 +49,8 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       borderWidth: 1,
       borderRadius: 8,
       padding: 12,
-      width: 150,
-      height: 40,
+      width: 200,
+      height: 45,
     }
   },
   {
@@ -98,7 +98,7 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       value: false,
       label: 'Checkbox',
       activeColor: '#2196F3',
-      width: 120,
+      width: 200,
       height: 30,
     }
   },
@@ -113,7 +113,7 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       value: false,
       label: 'Radio Option',
       activeColor: '#2196F3',
-      width: 120,
+      width: 250,
       height: 30,
     }
   },
@@ -128,8 +128,8 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       value: false,
       activeColor: '#2196F3',
       inactiveColor: '#CCCCCC',
-      width: 60,
-      height: 30,
+      width: 80,
+      height: 35,
     }
   },
   {
@@ -144,7 +144,7 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       min: 0,
       max: 100,
       activeColor: '#2196F3',
-      width: 150,
+      width: 250,
       height: 30,
     }
   },
@@ -189,8 +189,8 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       value: 0.5,
       backgroundColor: '#E0E0E0',
       valueColor: '#2196F3',
-      width: 200,
-      height: 8,
+      width: 250,
+      height: 12,
     }
   },
   {
@@ -205,8 +205,8 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       backgroundColor: '#E0E0E0',
       textColor: '#000000',
       deleteIcon: false,
-      width: 100,
-      height: 32,
+      width: 120,
+      height: 36,
     }
   },
   {
@@ -246,8 +246,8 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       uncheckedColor: '#757575',
       fontSize: 14,
       spacing: 8,
-      width: 200,
-      height: 120,
+      width: 300,
+      height: 150,
     }
   },
   {
@@ -273,7 +273,7 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       fontSize: 14,
       padding: 8,
       showBorders: true,
-      width: 300,
+      width: '100%',
       height: 200,
     }
   },
@@ -288,8 +288,32 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       scrollDirection: 'vertical',
       itemCount: 5,
       padding: 8,
+      width: 280,
+      height: 320,
+    }
+  },
+  {
+    id: 'dropdown',
+    name: 'Dropdown',
+    category: 'Input',
+    icon: 'ChevronDown',
+    hasChildren: false,
+    description: 'Dropdown selection menu',
+    defaultProperties: {
+      items: ['Option 1', 'Option 2', 'Option 3'],
+      value: '',
+      placeholder: 'Select an option',
+      backgroundColor: '#FFFFFF',
+      borderColor: '#CCCCCC',
+      textColor: '#000000',
+      hoverColor: '#F5F5F5',
+      arrowColor: '#757575',
+      fontSize: 14,
+      borderRadius: 4,
+      borderWidth: 1,
+      elevation: 2,
       width: 200,
-      height: 300,
+      height: 40
     }
   }
 ];

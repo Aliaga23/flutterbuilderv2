@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useApp } from '../context/AppContext';
 import { Page } from '../types';
@@ -14,77 +14,166 @@ const ManagerContainer = styled.div`
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 `;
 
-const PageTabs = styled.div`
-  display: flex;
-  gap: 12px;
+const PageDropdownContainer = styled.div`
+  position: relative;
   flex: 1;
-  overflow-x: auto;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
 `;
 
-const PageTab = styled.button<{ isActive: boolean }>`
-  padding: 10px 20px;
-  border: 1px solid ${props => props.isActive ? '#3B82F6' : '#E5E7EB'};
-  background: ${props => props.isActive ? '#3B82F6' : '#FFFFFF'};
-  color: ${props => props.isActive ? '#FFFFFF' : '#374151'};
-  border-radius: 12px;
+const DropdownButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 200px;
+  padding: 8px 12px;
+  border: 1px solid #E1E5E9;
+  background: #FFFFFF;
+  color: #374151;
+  border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  transition: all 0.2s ease;
   font-family: inherit;
-  letter-spacing: -0.025em;
 
   &:hover {
     border-color: #3B82F6;
-    ${props => !props.isActive && `
-      background: #F8FAFC;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    `}
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   }
 `;
 
-const CloseButton = styled.span`
+const DropdownArrow = styled.span<{ isOpen: boolean }>`
+  transition: transform 0.2s ease;
+  transform: ${props => props.isOpen ? 'rotate(180deg)' : 'rotate(0deg)'};
+  color: #6B7280;
+  font-size: 12px;
+  margin-left: 8px;
+  flex-shrink: 0;
+`;
+
+const DropdownMenu = styled.div<{ show: boolean }>`
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 200px;
+  background: #FFFFFF;
+  border: 1px solid #E1E5E9;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 1000;
+  display: ${props => props.show ? 'block' : 'none'};
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+`;
+
+const DropdownItem = styled.div<{ isActive?: boolean }>`
+  padding: 8px 12px;
+  cursor: pointer;
   font-size: 14px;
-  opacity: 0.7;
-  margin-left: 6px;
+  color: #374151;
+  background: ${props => props.isActive ? '#F8FAFC' : 'transparent'};
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   transition: all 0.2s ease;
+  border-left: ${props => props.isActive ? '3px solid #3B82F6' : '3px solid transparent'};
+  min-height: 36px;
 
   &:hover {
+    background: #F8FAFC;
+  }
+
+  &:first-child {
+    border-radius: 6px 6px 0 0;
+  }
+
+  &:last-child {
+    border-radius: 0 0 6px 6px;
+  }
+`;
+
+const PageItemContent = styled.div`
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+`;
+
+const PageName = styled.span`
+  font-weight: 500;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+`;
+
+const PageActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  margin-left: 8px;
+
+  ${DropdownItem}:hover & {
     opacity: 1;
-    transform: scale(1.1);
+  }
+`;
+
+const ActionButton = styled.button`
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: #6B7280;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+
+  &:hover {
+    background: #E5E7EB;
+    color: #374151;
+  }
+`;
+
+const DeleteButton = styled(ActionButton)`
+  &:hover {
+    background: #FEE2E2;
+    color: #DC2626;
   }
 `;
 
 const AddPageButton = styled.button`
-  padding: 10px 16px;
+  padding: 8px 16px;
   border: 1px solid #3B82F6;
-  background: #FFFFFF;
-  color: #3B82F6;
-  border-radius: 10px;
+  background: #3B82F6;
+  color: #FFFFFF;
+  border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 6px;
+  transition: all 0.2s ease;
   font-family: inherit;
 
   &:hover {
-    background: #3B82F6;
-    color: #FFFFFF;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    background: #2563EB;
+    border-color: #2563EB;
   }
 `;
 
@@ -94,16 +183,41 @@ const PageInfo = styled.div`
   gap: 16px;
   font-size: 13px;
   color: #64748B;
-  margin-left: auto;
   font-weight: 500;
 `;
 
 const WidgetCount = styled.span`
   background: #e3f2fd;
   color: #1976d2;
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
   font-weight: 500;
+  font-size: 12px;
+`;
+
+const RouteDisplay = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #F0F7FF 0%, #E6F3FF 100%);
+  border: 1px solid #B3D9FF;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #1565C0;
+  font-weight: 500;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+`;
+
+const AutoRouteLabel = styled.span`
+  background: #2196F3;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 `;
 
 const Modal = styled.div<{ show: boolean }>`
@@ -171,31 +285,6 @@ const ModalButton = styled.button<{ primary?: boolean }>`
   }
 `;
 
-const RouteDisplay = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: linear-gradient(135deg, #F0F7FF 0%, #E6F3FF 100%);
-  border: 1px solid #B3D9FF;
-  border-radius: 8px;
-  font-size: 12px;
-  color: #1565C0;
-  font-weight: 500;
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-`;
-
-const AutoRouteLabel = styled.span`
-  background: #2196F3;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-`;
-
 const RoutePreview = styled.div`
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
@@ -221,11 +310,48 @@ const RoutePreviewText = styled.div`
   font-weight: 500;
 `;
 
+const EditInput = styled.input`
+  background: #FFFFFF;
+  border: 1px solid #3B82F6;
+  font-size: 14px;
+  color: #374151;
+  font-family: inherit;
+  width: 120px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
+`;
+
 export function PageManager() {
   const { state, dispatch, getCurrentPage } = useApp();
   const [showModal, setShowModal] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [newPageName, setNewPageName] = useState('');
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const currentPage = getCurrentPage();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+        setEditingPageId(null);
+        setEditingName('');
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Generate preview route based on page name
   const previewRoute = newPageName.trim() 
@@ -238,7 +364,7 @@ export function PageManager() {
     const newPage: Page = {
       id: uuidv4(),
       name: newPageName.trim(),
-      route: previewRoute, // Use the generated preview route
+      route: previewRoute,
       widgets: []
     };
 
@@ -257,30 +383,111 @@ export function PageManager() {
 
   const switchPage = (pageId: string) => {
     dispatch({ type: 'SET_CURRENT_PAGE', payload: pageId });
+    setShowDropdown(false);
+  };
+
+  const startEditing = (page: Page, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPageId(page.id);
+    setEditingName(page.name);
+  };
+
+  const saveEdit = (pageId: string) => {
+    if (editingName.trim()) {
+      // Generate a new route based on the edited name
+      const newRoute = `/${editingName.trim().toLowerCase().replace(/\s+/g, '-')}`;
+      
+      dispatch({ 
+        type: 'UPDATE_PAGE', 
+        payload: { 
+          pageId, 
+          name: editingName.trim(),
+          route: newRoute
+        } 
+      });
+    }
+    setEditingPageId(null);
+    setEditingName('');
+  };
+
+  const cancelEdit = () => {
+    setEditingPageId(null);
+    setEditingName('');
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent, pageId: string) => {
+    if (e.key === 'Enter') {
+      saveEdit(pageId);
+    } else if (e.key === 'Escape') {
+      cancelEdit();
+    }
   };
 
   return (
     <>
       <ManagerContainer>
-        <PageTabs>
-          {state.project.pages.map(page => (
-            <PageTab
-              key={page.id}
-              isActive={page.id === state.project.currentPageId}
-              onClick={() => switchPage(page.id)}
-            >
-              ▢ {page.name}
-              {state.project.pages.length > 1 && (
-                <CloseButton onClick={(e) => deletePage(page.id, e)}>
-                  ✕
-                </CloseButton>
-              )}
-            </PageTab>
-          ))}
-        </PageTabs>
+        <PageDropdownContainer ref={dropdownRef}>
+          <DropdownButton onClick={() => setShowDropdown(!showDropdown)}>
+            <span>{currentPage?.name || 'Select Page'}</span>
+            <DropdownArrow isOpen={showDropdown}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </DropdownArrow>
+          </DropdownButton>
+          
+          <DropdownMenu show={showDropdown}>
+            {state.project.pages.map(page => (
+              <DropdownItem 
+                key={page.id} 
+                isActive={page.id === state.project.currentPageId}
+                onClick={() => switchPage(page.id)}
+              >
+                <PageItemContent>
+                  {editingPageId === page.id ? (
+                    <EditInput
+                      type="text"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => handleKeyPress(e, page.id)}
+                      onBlur={() => saveEdit(page.id)}
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <PageName>{page.name}</PageName>
+                  )}
+                </PageItemContent>
+                
+                <PageActions>
+                  {editingPageId !== page.id && (
+                    <ActionButton onClick={(e) => startEditing(page, e)}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="m18.5 2.5 a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </ActionButton>
+                  )}
+                  {state.project.pages.length > 1 && (
+                    <DeleteButton onClick={(e) => deletePage(page.id, e)}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <polyline points="3,6 5,6 21,6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </DeleteButton>
+                  )}
+                </PageActions>
+              </DropdownItem>
+            ))}
+          </DropdownMenu>
+        </PageDropdownContainer>
 
         <AddPageButton onClick={() => setShowModal(true)}>
-          + Add Page
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          New Page
         </AddPageButton>
 
         <PageInfo>

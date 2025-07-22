@@ -7,6 +7,7 @@ interface AppState {
   project: FlutterProject;
   selectedWidget: FlutterWidget | null;
   isDragging: boolean;
+  dragPosition: { x: number; y: number } | null;
 }
 
 type AppAction =
@@ -16,10 +17,12 @@ type AppAction =
   | { type: 'MOVE_WIDGET'; payload: { widgetId: string; position: Position } }
   | { type: 'SELECT_WIDGET'; payload: FlutterWidget | null }
   | { type: 'ADD_PAGE'; payload: Page }
+  | { type: 'UPDATE_PAGE'; payload: { pageId: string; name: string; route: string } }
   | { type: 'DELETE_PAGE'; payload: string }
   | { type: 'SET_CURRENT_PAGE'; payload: string }
   | { type: 'SET_DEVICE'; payload: string }
   | { type: 'SET_DRAGGING'; payload: boolean }
+  | { type: 'SET_DRAG_POSITION'; payload: { x: number; y: number } | null }
   | { type: 'UPDATE_PROJECT'; payload: Partial<FlutterProject> };
 
 const initialProject: FlutterProject = {
@@ -45,7 +48,8 @@ const initialProject: FlutterProject = {
 const initialState: AppState = {
   project: initialProject,
   selectedWidget: null,
-  isDragging: false
+  isDragging: false,
+  dragPosition: null
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -174,6 +178,21 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
     }
 
+    case 'UPDATE_PAGE': {
+      const { pageId, name, route } = action.payload;
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          pages: state.project.pages.map(page =>
+            page.id === pageId
+              ? { ...page, name, route }
+              : page
+          )
+        }
+      };
+    }
+
     case 'DELETE_PAGE': {
       const pageId = action.payload;
       const pageToDelete = state.project.pages.find(page => page.id === pageId);
@@ -251,6 +270,12 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         isDragging: action.payload
+      };
+
+    case 'SET_DRAG_POSITION':
+      return {
+        ...state,
+        dragPosition: action.payload
       };
 
     case 'UPDATE_PROJECT':

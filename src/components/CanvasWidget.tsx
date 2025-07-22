@@ -8,38 +8,41 @@ import { useApp } from '../context/AppContext';
 import { WidgetContextMenu } from './WidgetContextMenu';
 import 'react-resizable/css/styles.css';
 
-const WidgetContainer = styled.div<{ 
-  x: number; 
-  y: number; 
-  width: number; 
-  height: number; 
-  isSelected: boolean;
-  isDragging: boolean;
-}>`
-  position: absolute;
-  left: ${props => props.x}px;
-  top: ${props => props.y}px;
-  width: ${props => props.width}px;
-  height: ${props => props.height}px;
-  cursor: ${props => props.isSelected ? 'move' : 'pointer'};
-  border: ${props => props.isSelected ? '2px solid #2196f3' : '1px solid transparent'};
-  border-radius: 4px;
-  opacity: ${props => props.isDragging ? 0.5 : 1};
-  z-index: ${props => props.isSelected ? 1000 : 1};
-  transition: border-color 0.2s ease;
+ const WidgetContainer = styled.div<{ 
+   x: number; 
+   y: number; 
+   width: number; 
+   height: number; 
+   isSelected: boolean;
+   isDragging: boolean;
+ }>`
+   position: absolute;
+   left: ${props => props.x}px;
+   top: ${props => props.y}px;
+   width: ${props => props.width}px;
+   height: ${props => props.height}px;
+   cursor: move;
+   border: ${props => props.isSelected ? '2px solid #2196f3' : '1px solid #ddd'};
+   border-radius: 4px;
+   opacity: ${props => props.isDragging ? 0.5 : 1};
+   z-index: ${props => props.isSelected ? 1000 : 1};
+   background-color: ${props => props.isDragging ? 'rgba(33, 150, 243, 0.1)' : 'transparent'};
+   box-shadow: ${props => props.isSelected ? '0 0 8px rgba(33, 150, 243, 0.5)' : 'none'};
+  pointer-events: ${props => props.isDragging ? 'none' : 'auto'};
 
-  &:hover {
-    border-color: ${props => props.isSelected ? '#2196f3' : '#90CAF9'};
-  }
+   &:hover {
+     border-color: #2196f3;
+     box-shadow: 0 0 5px rgba(33, 150, 243, 0.3);
+   }
 
-  .react-resizable-handle {
-    opacity: ${props => props.isSelected ? 1 : 0};
-  }
+   .react-resizable-handle {
+     opacity: ${props => props.isSelected ? 1 : 0};
+   }
 
-  &:hover .react-resizable-handle {
-    opacity: 1;
-  }
-`;
+   &:hover .react-resizable-handle {
+     opacity: 1;
+   }
+ `;
 
 const WidgetContent = styled.div<{ backgroundColor?: string }>`
   width: 100%;
@@ -376,6 +379,54 @@ const BottomNavWidget = styled.div<{
   }
 `;
 
+const DropdownWidget = styled.div<{
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  textColor?: string;
+  hoverColor?: string;
+  arrowColor?: string;
+  fontSize?: number;
+  elevation?: number;
+}>`
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: ${props => props.backgroundColor || '#FFFFFF'};
+  border: ${props => `${props.borderWidth || 1}px solid ${props.borderColor || '#CCCCCC'}`};
+  border-radius: ${props => props.borderRadius || 4}px;
+  color: ${props => props.textColor || '#000000'};
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: ${props => props.fontSize || 14}px;
+  box-shadow: ${props => props.elevation ? `0 2px ${props.elevation}px rgba(0,0,0,0.2)` : 'none'};
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    background-color: ${props => props.hoverColor || '#F5F5F5'};
+    box-shadow: ${props => props.elevation ? `0 4px ${props.elevation * 2}px rgba(0,0,0,0.2)` : 'none'};
+  }
+
+  .dropdown-selected {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 8px 0;
+  }
+
+  .dropdown-arrow {
+    margin-left: 8px;
+    color: ${props => props.arrowColor || '#757575'};
+    transition: transform 0.2s ease;
+  }
+`;
+
 const AppBarWidget = styled.div<{
   backgroundColor?: string;
   titleColor?: string;
@@ -430,6 +481,7 @@ export function CanvasWidget({ widget, deviceWidth, deviceHeight }: CanvasWidget
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
+    // Eliminar hooks que pueden estar causando problemas
   });
 
   const handleSelect = (e: React.MouseEvent) => {
@@ -473,8 +525,9 @@ export function CanvasWidget({ widget, deviceWidth, deviceHeight }: CanvasWidget
   };
 
   const handleResize = (e: any, { size }: { size: { width: number; height: number } }) => {
-    // Don't allow resizing of AppBar and BottomNavigationBar if they are auto-adjusted
-    if (adjustedWidget.type === 'appbar' || adjustedWidget.type === 'bottomnavbar') {
+    // Don't allow resizing of AppBar, BottomNavigationBar, and Table with 100% width if they are auto-adjusted
+    if (adjustedWidget.type === 'appbar' || adjustedWidget.type === 'bottomnavbar' || 
+        (adjustedWidget.type === 'table' && adjustedWidget.properties.width === '100%')) {
       return; // Prevent manual resizing
     }
 
@@ -521,6 +574,19 @@ export function CanvasWidget({ widget, deviceWidth, deviceHeight }: CanvasWidget
         position: {
           x: 0,
           y: Math.max(0, deviceHeight - widget.size.height)
+        }
+      };
+    } else if (widget.type === 'table' && widget.properties.width === '100%') {
+      // Table should span full width when width is set to 100%
+      adjustedWidget = {
+        ...widget,
+        size: {
+          width: deviceWidth,
+          height: widget.size.height
+        },
+        position: {
+          x: 0,
+          y: widget.position.y
         }
       };
     }
@@ -738,14 +804,24 @@ export function CanvasWidget({ widget, deviceWidth, deviceHeight }: CanvasWidget
                     marginBottom: `${properties.spacing || 8}px`
                   }}
                 >
-                  <LucideIcons.CheckSquare 
-                    size={16} 
-                    style={{ 
-                      color: isChecked ? (properties.checkedColor || '#2196F3') : (properties.uncheckedColor || '#757575'),
-                      marginRight: '8px'
-                    }} 
-                  />
-                  <span style={{ textDecoration: isChecked ? 'line-through' : 'none' }}>
+                  {isChecked ? (
+                    <LucideIcons.CheckSquare 
+                      size={16} 
+                      style={{ 
+                        color: properties.checkedColor || '#2196F3',
+                        marginRight: '8px'
+                      }} 
+                    />
+                  ) : (
+                    <LucideIcons.Square 
+                      size={16} 
+                      style={{ 
+                        color: properties.uncheckedColor || '#757575',
+                        marginRight: '8px'
+                      }} 
+                    />
+                  )}
+                  <span>
                     {item}
                   </span>
                 </div>
@@ -807,6 +883,28 @@ export function CanvasWidget({ widget, deviceWidth, deviceHeight }: CanvasWidget
             </span>
           </ContainerWidget>
         );
+        
+      case 'dropdown':
+        return (
+          <DropdownWidget
+            backgroundColor={properties.backgroundColor}
+            borderColor={properties.borderColor}
+            borderWidth={properties.borderWidth}
+            borderRadius={properties.borderRadius}
+            textColor={properties.textColor}
+            hoverColor={properties.hoverColor}
+            arrowColor={properties.arrowColor}
+            fontSize={properties.fontSize}
+            elevation={properties.elevation}
+          >
+            <div className="dropdown-selected">
+              {properties.value || properties.placeholder || 'Select an option'}
+            </div>
+            <div className="dropdown-arrow">
+              <LucideIcons.ChevronDown size={properties.fontSize || 16} color={properties.arrowColor} />
+            </div>
+          </DropdownWidget>
+        );
 
       default:
         return (
@@ -819,7 +917,8 @@ export function CanvasWidget({ widget, deviceWidth, deviceHeight }: CanvasWidget
     }
   };
 
-  const isResizable = !(adjustedWidget.type === 'appbar' || adjustedWidget.type === 'bottomnavbar');
+  const isResizable = !(adjustedWidget.type === 'appbar' || adjustedWidget.type === 'bottomnavbar' || 
+                       (adjustedWidget.type === 'table' && adjustedWidget.properties.width === '100%'));
 
   return (
     <>

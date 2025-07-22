@@ -256,12 +256,18 @@ export function Canvas() {
           }
 
           const position = {
-            x: clientOffset.x - dropZoneRect.left - widgetWidth / 2,
-            y: clientOffset.y - dropZoneRect.top - widgetHeight / 2,
+            x: Math.round(clientOffset.x - dropZoneRect.left - widgetWidth / 2),
+            y: Math.round(clientOffset.y - dropZoneRect.top - widgetHeight / 2),
             width: widgetWidth,
             height: widgetHeight
           };
           setDragPosition(position);
+          
+          // Update drag position in context
+          dispatch({
+            type: 'SET_DRAG_POSITION',
+            payload: { x: position.x, y: position.y }
+          });
         }
       }
     },
@@ -287,8 +293,8 @@ export function Canvas() {
           }
 
           const position: Position = {
-            x: Math.max(0, Math.min(clientOffset.x - dropZoneRect.left - widgetWidth/2, dropZoneRect.width - widgetWidth)),
-            y: Math.max(0, Math.min(clientOffset.y - dropZoneRect.top - widgetHeight/2, dropZoneRect.height - widgetHeight))
+            x: Math.round(Math.max(0, Math.min(clientOffset.x - dropZoneRect.left - widgetWidth/2, dropZoneRect.width - widgetWidth))),
+            y: Math.round(Math.max(0, Math.min(clientOffset.y - dropZoneRect.top - widgetHeight/2, dropZoneRect.height - widgetHeight)))
           };
 
           // Handle moving existing widget
@@ -325,6 +331,12 @@ export function Canvas() {
           }
         }
         setDragPosition(null);
+        
+        // Clear drag position in context
+        dispatch({
+          type: 'SET_DRAG_POSITION',
+          payload: null
+        });
       }
     },
     collect: (monitor) => ({
