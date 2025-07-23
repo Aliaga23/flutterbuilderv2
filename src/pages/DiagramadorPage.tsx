@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef} from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -368,12 +368,13 @@ function DiagramadorContent() {
     loadData();
   }, [id, navigate, enableCollaboration]);
 
-  // Auto-save function (silent save without UI feedback)
-  const autoSaveProject = useCallback(async () => {
+  // 1️⃣ Mantén una ref con la lógica más reciente del auto-save
+  const autosaveFnRef = useRef<() => void>(() => {});
+  autosaveFnRef.current = async () => {
     if (!project || !autoSaveEnabled || saving) return;
 
     try {
-      // Get current widget data from the context
+      // Usar la versión más reciente de generateJSON
       const currentProjectData = JSON.parse(generateJSON());
       
       await updateProject(project.id, {
@@ -382,23 +383,27 @@ function DiagramadorContent() {
       });
       
       setLastAutoSave(new Date());
-      console.log('Auto-guardado exitoso:', new Date().toLocaleTimeString());
+      console.log('[AutoSave] OK:', new Date().toLocaleTimeString());
     } catch (error) {
-      console.error('Error en auto-guardado:', error);
-      // Don't show error to user for auto-save failures
+      console.error('[AutoSave] Error:', error);
+      // No mostrar error al usuario para fallos de auto-guardado
     }
-  }, [project, autoSaveEnabled, saving, generateJSON]);
+  };
 
-  // Auto-save every 6 seconds
+  // 2️⃣ Solo crear el intervalo una vez (o cuando cambia el proyecto)
   useEffect(() => {
     if (!project || !autoSaveEnabled) return;
 
-    const autoSaveInterval = setInterval(() => {
-      autoSaveProject();
+    console.log('[AutoSave] Iniciando intervalo de 6 segundos');
+    const intervalId = setInterval(() => {
+      autosaveFnRef.current(); // Usar la ref para obtener la función más reciente
     }, 6000); // 6 segundos
 
-    return () => clearInterval(autoSaveInterval);
-  }, [project, autoSaveEnabled, autoSaveProject]);
+    return () => {
+      console.log('[AutoSave] Limpiando intervalo');
+      clearInterval(intervalId);
+    };
+  }, [project, autoSaveEnabled]); // ⬅️ NO depende de generateJSON ni saving
 
   // Handle mouse movement for collaboration
   const handleMouseMove = (event: React.MouseEvent) => {

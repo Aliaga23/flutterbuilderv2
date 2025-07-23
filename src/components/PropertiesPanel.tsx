@@ -511,17 +511,27 @@ export function PropertiesPanel() {
       [property]: value
     };
 
+    // Si se están actualizando width o height, también actualizar el size
+    let newSize = undefined;
+    if (property === 'width' || property === 'height') {
+      newSize = {
+        ...selectedWidget.size,
+        [property]: value
+      };
+    }
+
     dispatch({
       type: 'UPDATE_WIDGET',
       payload: {
         widgetId: selectedWidget.id,
-        properties: newProperties
+        properties: newProperties,
+        ...(newSize && { size: newSize })
       }
     });
     
     // Send collaboration event for property update
     if (collaborationService.isConnected()) {
-      collaborationService.sendWidgetUpdated(selectedWidget.id, newProperties);
+      collaborationService.sendWidgetUpdated(selectedWidget.id, newProperties, newSize);
     }
   };
 
@@ -730,13 +740,23 @@ export function PropertiesPanel() {
             type="number"
             value={widget.size.width}
             onChange={(e) => {
+              const newWidth = Number(e.target.value);
+              const newSize = { ...widget.size, width: newWidth };
+              const newProperties = { ...widget.properties, width: newWidth };
+              
               dispatch({
                 type: 'UPDATE_WIDGET',
                 payload: {
                   widgetId: widget.id,
-                  size: { ...widget.size, width: Number(e.target.value) }
+                  size: newSize,
+                  properties: newProperties
                 }
               });
+              
+              // Send collaboration event for dimension update
+              if (collaborationService.isConnected()) {
+                collaborationService.sendWidgetUpdated(widget.id, newProperties, newSize);
+              }
             }}
           />
         </PropertyGroup>
@@ -747,13 +767,23 @@ export function PropertiesPanel() {
             type="number"
             value={widget.size.height}
             onChange={(e) => {
+              const newHeight = Number(e.target.value);
+              const newSize = { ...widget.size, height: newHeight };
+              const newProperties = { ...widget.properties, height: newHeight };
+              
               dispatch({
                 type: 'UPDATE_WIDGET',
                 payload: {
                   widgetId: widget.id,
-                  size: { ...widget.size, height: Number(e.target.value) }
+                  size: newSize,
+                  properties: newProperties
                 }
               });
+              
+              // Send collaboration event for dimension update
+              if (collaborationService.isConnected()) {
+                collaborationService.sendWidgetUpdated(widget.id, newProperties, newSize);
+              }
             }}
           />
         </PropertyGroup>

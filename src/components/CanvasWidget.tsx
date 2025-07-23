@@ -547,7 +547,8 @@ export function CanvasWidget({ widget, deviceWidth, deviceHeight }: CanvasWidget
       type: 'UPDATE_WIDGET',
       payload: {
         widgetId: widget.id,
-        properties: newProperties
+        properties: newProperties,
+        size: size // Agregar size al payload del dispatch local también
       }
     });
     
