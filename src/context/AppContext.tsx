@@ -24,7 +24,10 @@ type AppAction =
   | { type: 'SET_DRAGGING'; payload: boolean }
   | { type: 'SET_DRAG_POSITION'; payload: { x: number; y: number } | null }
   | { type: 'UPDATE_PROJECT'; payload: Partial<FlutterProject> }
-  | { type: 'LOAD_PROJECT'; payload: FlutterProject };
+  | { type: 'LOAD_PROJECT'; payload: FlutterProject }
+  | { type: 'NO_OP' };
+
+export type { AppAction };
 
 const initialProject: FlutterProject = {
   name: 'Flutter App',
@@ -63,7 +66,12 @@ function appReducer(state: AppState, action: AppAction): AppState {
           ...state.project,
           pages: state.project.pages.map(page =>
             page.id === pageId
-              ? { ...page, widgets: [...page.widgets, widget] }
+              ? {
+                  ...page,
+                  widgets: page.widgets.some(w => w.id === widget.id)
+                    ? page.widgets // Si ya existe, no lo agregues
+                    : [...page.widgets, widget] // Si no existe, agrégalo
+                }
               : page
           )
         }
@@ -297,6 +305,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
         },
         selectedWidget: null // Clear selection when loading new project
       };
+
+    case 'NO_OP':
+      return state; // No hacer nada, devolver el estado actual
 
     default:
       return state;

@@ -6,6 +6,7 @@ import * as LucideIcons from 'lucide-react';
 import { FlutterWidget } from '../types';
 import { useApp } from '../context/AppContext';
 import { WidgetContextMenu } from './WidgetContextMenu';
+import { collaborationService } from '../services/collaborationService';
 import 'react-resizable/css/styles.css';
 
  const WidgetContainer = styled.div<{ 
@@ -509,6 +510,11 @@ export function CanvasWidget({ widget, deviceWidth, deviceHeight }: CanvasWidget
   const handleDeleteWidget = () => {
     dispatch({ type: 'DELETE_WIDGET', payload: widget.id });
     setContextMenu({ ...contextMenu, visible: false });
+    
+    // Send collaboration event for widget deletion
+    if (collaborationService.isConnected()) {
+      collaborationService.sendWidgetDeleted(widget.id);
+    }
   };
 
   const handleEditWidget = () => {
@@ -531,17 +537,24 @@ export function CanvasWidget({ widget, deviceWidth, deviceHeight }: CanvasWidget
       return; // Prevent manual resizing
     }
 
+    const newProperties = {
+      ...widget.properties,
+      width: size.width,
+      height: size.height
+    };
+
     dispatch({
       type: 'UPDATE_WIDGET',
       payload: {
         widgetId: widget.id,
-        properties: {
-          ...widget.properties,
-          width: size.width,
-          height: size.height
-        }
+        properties: newProperties
       }
     });
+    
+    // Send collaboration event for widget resize
+    if (collaborationService.isConnected()) {
+      collaborationService.sendWidgetUpdated(widget.id, newProperties, size);
+    }
   };
 
   // Auto-adjust widget size and position for AppBar and BottomNavigationBar

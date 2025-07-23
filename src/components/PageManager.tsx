@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useApp } from '../context/AppContext';
 import { Page } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import { collaborationService } from '../services/collaborationService';
 
 const ManagerContainer = styled.div`
   display: flex;
@@ -370,6 +371,12 @@ export function PageManager() {
 
     dispatch({ type: 'ADD_PAGE', payload: newPage });
     dispatch({ type: 'SET_CURRENT_PAGE', payload: newPage.id });
+    
+    // Enviar evento de colaboración
+    if (collaborationService.isConnected()) {
+      collaborationService.sendPageAdded(newPage);
+    }
+    
     setShowModal(false);
     setNewPageName('');
   };
@@ -378,6 +385,11 @@ export function PageManager() {
     e.stopPropagation();
     if (state.project.pages.length > 1) {
       dispatch({ type: 'DELETE_PAGE', payload: pageId });
+      
+      // Enviar evento de colaboración
+      if (collaborationService.isConnected()) {
+        collaborationService.sendPageDeleted(pageId);
+      }
     }
   };
 
@@ -405,6 +417,11 @@ export function PageManager() {
           route: newRoute
         } 
       });
+      
+      // Enviar evento de colaboración
+      if (collaborationService.isConnected()) {
+        collaborationService.sendPageUpdated(pageId, editingName.trim(), newRoute);
+      }
     }
     setEditingPageId(null);
     setEditingName('');

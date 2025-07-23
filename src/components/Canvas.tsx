@@ -6,6 +6,7 @@ import { useApp } from '../context/AppContext';
 import { DEVICE_TYPES, WIDGET_TEMPLATES } from '../constants/widgets';
 import { CanvasWidget } from './CanvasWidget';
 import { DragItem, Position } from '../types';
+import { collaborationService } from '../services/collaborationService';
 import { v4 as uuidv4 } from 'uuid';
 
 const CanvasContainer = styled.div`
@@ -174,27 +175,6 @@ const EmptySubtext = styled.div`
   opacity: 0.7;
 `;
 
-const DragPreview = styled.div<{ x: number; y: number; width: number; height: number }>`
-  position: absolute;
-  left: ${props => props.x}px;
-  top: ${props => props.y}px;
-  width: ${props => props.width}px;
-  height: ${props => props.height}px;
-  background: rgba(33, 150, 243, 0.2);
-  border: 2px dashed #2196f3;
-  border-radius: 4px;
-  pointer-events: none;
-  z-index: 1001;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: #2196f3;
-  font-weight: 500;
-`;
-
-
-
 const CanvasScrollArea = styled.div`
   min-height: 100%;
   display: flex;
@@ -208,7 +188,7 @@ export function Canvas() {
   const currentPage = getCurrentPage();
   const currentDevice = DEVICE_TYPES.find(device => device.id === state.project.selectedDeviceId);
   const dropZoneRef = React.useRef<HTMLDivElement>(null);
-  const [dragPosition, setDragPosition] = React.useState<Position & { width: number; height: number } | null>(null);
+  const lastMoveTime = React.useRef<number>(0);
 
   // Calculate actual content dimensions considering device padding
   const getContentDimensions = () => {
@@ -232,42 +212,41 @@ export function Canvas() {
 
   const contentDimensions = getContentDimensions();
 
-  const [{ isOver }, drop] = useDrop({
+  const [{ isOver }, drop] = useDrop<DragItem, void, { isOver: boolean }>({
     accept: ['widget', 'canvas-widget'],
+    collect: (monitor) => ({
+      isOver: monitor.isOver()
+    }),
     hover: (item: DragItem, monitor) => {
-      if (dropZoneRef.current) {
+      // Solo para widgets existentes que se están moviendo
+      if (item.type === 'canvas-widget' && item.widget && dropZoneRef.current) {
         const clientOffset = monitor.getClientOffset();
         const dropZoneRect = dropZoneRef.current.getBoundingClientRect();
         
         if (clientOffset) {
-          // Get widget dimensions for more precise positioning
-          let widgetWidth = 100;
-          let widgetHeight = 100;
-          
-          if (item.type === 'canvas-widget' && item.widget) {
-            widgetWidth = item.widget.size.width;
-            widgetHeight = item.widget.size.height;
-          } else if (item.type === 'widget' && item.widgetType) {
-            const template = WIDGET_TEMPLATES.find(t => t.id === item.widgetType);
-            if (template) {
-              widgetWidth = template.defaultProperties.width || 100;
-              widgetHeight = template.defaultProperties.height || 100;
-            }
-          }
+          const widgetWidth = item.widget.size.width;
+          const widgetHeight = item.widget.size.height;
 
-          const position = {
-            x: Math.round(clientOffset.x - dropZoneRect.left - widgetWidth / 2),
-            y: Math.round(clientOffset.y - dropZoneRect.top - widgetHeight / 2),
-            width: widgetWidth,
-            height: widgetHeight
+          const position: Position = {
+            x: Math.round(Math.max(0, Math.min(clientOffset.x - dropZoneRect.left - widgetWidth/2, dropZoneRect.width - widgetWidth))),
+            y: Math.round(Math.max(0, Math.min(clientOffset.y - dropZoneRect.top - widgetHeight/2, dropZoneRect.height - widgetHeight)))
           };
-          setDragPosition(position);
-          
-          // Update drag position in context
+
+          // Actualizar posición en tiempo real
           dispatch({
-            type: 'SET_DRAG_POSITION',
-            payload: { x: position.x, y: position.y }
+            type: 'MOVE_WIDGET',
+            payload: {
+              widgetId: item.widget.id,
+              position
+            }
           });
+          
+          // Enviar colaboración con throttling (máximo cada 50ms)
+          const now = Date.now();
+          if (collaborationService.isConnected() && now - lastMoveTime.current > 50) {
+            collaborationService.sendWidgetMoved(item.widget.id, position);
+            lastMoveTime.current = now;
+          }
         }
       }
     },
@@ -277,40 +256,18 @@ export function Canvas() {
         const dropZoneRect = dropZoneRef.current.getBoundingClientRect();
         
         if (clientOffset) {
-          // Get widget dimensions
-          let widgetWidth = 100;
-          let widgetHeight = 100;
-          
-          if (item.type === 'canvas-widget' && item.widget) {
-            widgetWidth = item.widget.size.width;
-            widgetHeight = item.widget.size.height;
-          } else if (item.type === 'widget' && item.widgetType) {
+          // Solo manejar widgets nuevos aquí
+          if (item.type === 'widget' && item.widgetType) {
             const template = WIDGET_TEMPLATES.find(t => t.id === item.widgetType);
             if (template) {
-              widgetWidth = template.defaultProperties.width || 100;
-              widgetHeight = template.defaultProperties.height || 100;
-            }
-          }
+              const widgetWidth = template.defaultProperties.width || 100;
+              const widgetHeight = template.defaultProperties.height || 100;
 
-          const position: Position = {
-            x: Math.round(Math.max(0, Math.min(clientOffset.x - dropZoneRect.left - widgetWidth/2, dropZoneRect.width - widgetWidth))),
-            y: Math.round(Math.max(0, Math.min(clientOffset.y - dropZoneRect.top - widgetHeight/2, dropZoneRect.height - widgetHeight)))
-          };
+              const position: Position = {
+                x: Math.round(Math.max(0, Math.min(clientOffset.x - dropZoneRect.left - widgetWidth/2, dropZoneRect.width - widgetWidth))),
+                y: Math.round(Math.max(0, Math.min(clientOffset.y - dropZoneRect.top - widgetHeight/2, dropZoneRect.height - widgetHeight)))
+              };
 
-          // Handle moving existing widget
-          if (item.type === 'canvas-widget' && item.widget) {
-            dispatch({
-              type: 'MOVE_WIDGET',
-              payload: {
-                widgetId: item.widget.id,
-                position
-              }
-            });
-          }
-          // Handle adding new widget
-          else if (item.type === 'widget' && item.widgetType) {
-            const template = WIDGET_TEMPLATES.find(t => t.id === item.widgetType);
-            if (template) {
               const newWidget = {
                 id: uuidv4(),
                 type: item.widgetType,
@@ -327,10 +284,14 @@ export function Canvas() {
                 type: 'ADD_WIDGET', 
                 payload: { widget: newWidget, pageId: currentPage.id } 
               });
+              
+              // Send collaboration event for new widget
+              if (collaborationService.isConnected()) {
+                collaborationService.sendWidgetAdded(newWidget, currentPage.id);
+              }
             }
           }
         }
-        setDragPosition(null);
         
         // Clear drag position in context
         dispatch({
@@ -338,10 +299,7 @@ export function Canvas() {
           payload: null
         });
       }
-    },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-    }),
+    }
   });
 
   if (!currentDevice || !currentPage) {
@@ -390,17 +348,6 @@ export function Canvas() {
                 deviceHeight={contentDimensions.height}
               />
             ))}
-
-            {isOver && dragPosition && (
-              <DragPreview 
-                x={dragPosition.x} 
-                y={dragPosition.y}
-                width={dragPosition.width}
-                height={dragPosition.height}
-              >
-                Drop here
-              </DragPreview>
-            )}
           </DeviceScreen>
         </DeviceFrame>
       </CanvasScrollArea>

@@ -8,6 +8,7 @@ import { TableEditor } from './TableEditor';
 import { DropdownOptionsEditor } from './DropdownOptionsEditor';
 import { ChecklistItemsEditor } from './ChecklistItemsEditor';
 import { generateFlutterApp, generateFunctionalAppWithAI } from '../services/authService';
+import { collaborationService } from '../services/collaborationService';
 
 const PanelContainer = styled.div`
   width: 320px;
@@ -506,15 +507,22 @@ export function PropertiesPanel() {
   const updateProperty = (property: string, value: any) => {
     if (!selectedWidget) return;
 
+    const newProperties = {
+      [property]: value
+    };
+
     dispatch({
       type: 'UPDATE_WIDGET',
       payload: {
         widgetId: selectedWidget.id,
-        properties: {
-          [property]: value
-        }
+        properties: newProperties
       }
     });
+    
+    // Send collaboration event for property update
+    if (collaborationService.isConnected()) {
+      collaborationService.sendWidgetUpdated(selectedWidget.id, newProperties);
+    }
   };
 
   const handleExportToFlutter = async () => {

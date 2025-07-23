@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -13,7 +13,10 @@ import { PageManager } from '../components/PageManager';
 import { JsonViewer } from '../components/JsonViewer';
 import { JsonImporter } from '../components/JsonImporter';
 import { AIGenerator } from '../components/AIGenerator';
-import { getProject, updateProject, isAuthenticated } from '../services/authService';
+import { CollaborationSidebar } from '../components/CollaborationSidebar';
+import { UserCursors } from '../components/UserCursors';
+import { getProject, updateProject, isAuthenticated, getProfile } from '../services/authService';
+import { useCollaboration } from '../hooks/useCollaboration';
 
 const AppContainer = styled.div`
   display: flex;
@@ -22,6 +25,7 @@ const AppContainer = styled.div`
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   color: #0F172A;
   font-feature-settings: 'cv11', 'ss01';
+  position: relative;
   
   * {
     box-sizing: border-box;
@@ -248,6 +252,21 @@ function DiagramadorContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [, setUserProfile] = useState<any>(null);
+  const [collaborationSidebarOpen, setCollaborationSidebarOpen] = useState(false);
+  const [grantingAccess, setGrantingAccess] = useState(false);
+  const [autoSaveEnabled] = useState(true);
+  const [, setLastAutoSave] = useState<Date | null>(null);
+  
+  // Collaboration hook
+  const {
+    isConnected,
+    connectedUsers,
+    userCursors,
+    enableCollaboration,
+    sendCursorMove
+    
+  } = useCollaboration(id);
   
   // Use ref to avoid adding loadFromJSON to dependencies
   const loadFromJSONRef = useRef(loadFromJSON);
@@ -266,11 +285,23 @@ function DiagramadorContent() {
       return;
     }
 
-    // Define loadProject inside useEffect to avoid dependency issues
-    const loadProject = async () => {
+    // Load user profile and project
+    const loadData = async () => {
+      let profile = null;
       try {
         setLoading(true);
+        
+        console.log('Loading data for project:', id);
+        
+        // Load user profile
+        profile = await getProfile();
+        console.log('User profile loaded:', profile);
+        setUserProfile(profile);
+        
+        // Load project
+        console.log('Attempting to load project...');
         const projectData = await getProject(id);
+        console.log('Project data loaded:', projectData);
         setProject(projectData);
         
         // Load the project data into the context
@@ -278,18 +309,103 @@ function DiagramadorContent() {
           loadFromJSONRef.current(projectData.data);
         }
         
+        // Automatically enable collaboration after successful project load
+        const token = localStorage.getItem('access_token');
+        if (token && profile) {
+          console.log('Enabling collaboration automatically...');
+          await enableCollaboration(profile.id, token, profile);
+        }
+        
         setError('');
       } catch (error) {
-        setError(error instanceof Error ? error.message : 'Error al cargar el proyecto');
+        console.error('Error loading project data:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Error al cargar el proyecto';
+        
+        // If it's a 403 or "Not authorized" error, try to grant access by connecting to WebSocket first
+        if (errorMessage.includes('403') || errorMessage.includes('Not authorized') || errorMessage.includes('Forbidden')) {
+          console.log('Access denied, attempting to grant access via collaboration...');
+          setGrantingAccess(true);
+          
+          // Try to grant access by connecting to the collaboration WebSocket
+          try {
+            const token = localStorage.getItem('access_token');
+            if (token && profile) {
+              // Connect to WebSocket to trigger access granting
+              await enableCollaboration(profile.id, token, profile);
+              
+              // Wait a moment for the backend to process the access grant
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              // Try to load the project again
+              console.log('Retrying project load after access grant...');
+              const projectData = await getProject(id);
+              console.log('Project loaded successfully after retry:', projectData);
+              setProject(projectData);
+              
+              // Load the project data into the context
+              if (projectData.data && Object.keys(projectData.data).length > 0) {
+                loadFromJSONRef.current(projectData.data);
+              }
+              
+              setError('');
+            } else {
+              setError('Acceso denegado. Necesitas estar autenticado para acceder a este proyecto colaborativo.');
+            }
+          } catch (retryError) {
+            console.error('Failed to grant access via collaboration:', retryError);
+            setError('No tienes acceso a este proyecto. Si recibiste una invitación, contacta al propietario del proyecto.');
+          } finally {
+            setGrantingAccess(false);
+          }
+        } else {
+          setError(errorMessage);
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    loadProject();
-  }, [id, navigate]);
+    loadData();
+  }, [id, navigate, enableCollaboration]);
 
- 
+  // Auto-save function (silent save without UI feedback)
+  const autoSaveProject = useCallback(async () => {
+    if (!project || !autoSaveEnabled || saving) return;
+
+    try {
+      // Get current widget data from the context
+      const currentProjectData = JSON.parse(generateJSON());
+      
+      await updateProject(project.id, {
+        name: project.name,
+        data: currentProjectData
+      });
+      
+      setLastAutoSave(new Date());
+      console.log('Auto-guardado exitoso:', new Date().toLocaleTimeString());
+    } catch (error) {
+      console.error('Error en auto-guardado:', error);
+      // Don't show error to user for auto-save failures
+    }
+  }, [project, autoSaveEnabled, saving, generateJSON]);
+
+  // Auto-save every 6 seconds
+  useEffect(() => {
+    if (!project || !autoSaveEnabled) return;
+
+    const autoSaveInterval = setInterval(() => {
+      autoSaveProject();
+    }, 6000); // 6 segundos
+
+    return () => clearInterval(autoSaveInterval);
+  }, [project, autoSaveEnabled, autoSaveProject]);
+
+  // Handle mouse movement for collaboration
+  const handleMouseMove = (event: React.MouseEvent) => {
+    if (isConnected) {
+      sendCursorMove({ x: event.clientX, y: event.clientY });
+    }
+  };
 
   const handleSaveProject = async () => {
     if (!project) return;
@@ -323,7 +439,7 @@ function DiagramadorContent() {
     return (
       <LoadingContainer>
         <Loader2 size={24} />
-        Cargando proyecto...
+        {grantingAccess ? 'Obteniendo acceso al proyecto...' : 'Cargando proyecto...'}
       </LoadingContainer>
     );
   }
@@ -353,7 +469,7 @@ function DiagramadorContent() {
   }
 
   return (
-    <AppContainer>
+    <AppContainer onMouseMove={handleMouseMove}>
       <WidgetLibrary />
       
       <MainContent>
@@ -395,6 +511,17 @@ function DiagramadorContent() {
       </MainContent>
       
       <PropertiesPanel />
+      
+      {/* Collaboration Components */}
+      <CollaborationSidebar
+        isOpen={collaborationSidebarOpen}
+        onToggle={() => setCollaborationSidebarOpen(!collaborationSidebarOpen)}
+        isConnected={isConnected}
+        connectedUsers={connectedUsers}
+        projectId={id || ''}
+      />
+      
+      <UserCursors cursors={userCursors} />
       
       <JsonImporter 
         isOpen={showImporter} 
