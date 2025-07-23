@@ -505,7 +505,7 @@ function DiagramadorContent() {
         
         <DeviceSelector />
         
-        <Canvas />
+        <Canvas sendCursorMove={sendCursorMove} />
         
         <JsonViewer />
       </MainContent>

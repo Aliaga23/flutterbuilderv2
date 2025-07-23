@@ -183,7 +183,11 @@ const CanvasScrollArea = styled.div`
   padding: 40px 0;
 `;
 
-export function Canvas() {
+interface CanvasProps {
+  sendCursorMove?: (position: { x: number; y: number }) => void;
+}
+
+export function Canvas({ sendCursorMove }: CanvasProps = {}) {
   const { state, dispatch, getCurrentPage } = useApp();
   const currentPage = getCurrentPage();
   const currentDevice = DEVICE_TYPES.find(device => device.id === state.project.selectedDeviceId);
@@ -244,7 +248,14 @@ export function Canvas() {
           // Enviar colaboración con throttling (máximo cada 50ms)
           const now = Date.now();
           if (collaborationService.isConnected() && now - lastMoveTime.current > 50) {
+            // Enviar movimiento del widget
             collaborationService.sendWidgetMoved(item.widget.id, position);
+            
+            // Enviar también la posición del cursor (posición global)
+            if (sendCursorMove) {
+              sendCursorMove({ x: clientOffset.x, y: clientOffset.y });
+            }
+            
             lastMoveTime.current = now;
           }
         }
